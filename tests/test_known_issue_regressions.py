@@ -17,6 +17,8 @@ from image_asset_extractor.services.extraction import ExtractionEngine
 
 
 CASES = {
+    "02_white_black_icons.png": 12,
+    "05_solid_color_background.webp": 10,
     "01_transparent_icons.png": 20,
     "17_products_collection.jpeg": 9,
     "07_regular_grid.png": 25,
@@ -32,8 +34,20 @@ CASES = {
     "test5.png": 19,
 }
 
+STABLE_CASES = {
+    "02_white_black_icons.png",
+    "05_solid_color_background.webp",
+    "10_close_same_color.png",
+    "12_slight_touching_pairs.png",
+}
+FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "known_issues"
+
 
 def _source(name: str) -> Path:
+    fixture = FIXTURE_ROOT / name
+    if name in STABLE_CASES:
+        assert fixture.is_file(), f"missing repository fixture: {fixture}"
+        return fixture
     matches = list((Path.home() / "Desktop").rglob(name))
     if len(matches) != 1:
         pytest.skip(f"external known-issue fixture unavailable: {name}")
@@ -70,6 +84,35 @@ def known_results(tmp_path_factory):
 @pytest.mark.parametrize("name,expected", CASES.items())
 def test_known_issue_asset_counts(known_results, name, expected):
     assert len(known_results[name]["result"].assets) == expected
+
+
+@pytest.mark.parametrize("name", sorted(STABLE_CASES))
+def test_exported_alpha_stays_inside_asset_ownership(known_results, name):
+    case = known_results[name]
+    total_foreign_regions = 0
+    total_foreign_structure = 0
+    for asset in case["result"].assets:
+        box = asset.bbox
+        exported = np.asarray(Image.open(case["output"] / asset.file).convert("RGBA"))
+        local_labels = case["labels"][box.y:box.y2, box.x:box.x2]
+        owned_labels = [
+            region.label for region in case["regions"] if region.id in asset.region_ids
+        ]
+        foreign_regions = (local_labels > 0) & ~np.isin(local_labels, owned_labels)
+        foreign_structure = (
+            (case["structure"][box.y:box.y2, box.x:box.x2] > 0)
+            & (asset.detection_mask == 0)
+        )
+        total_foreign_regions += int(np.count_nonzero((exported[:, :, 3] > 0) & foreign_regions))
+        total_foreign_structure += int(np.count_nonzero((exported[:, :, 3] > 0) & foreign_structure))
+    assert total_foreign_regions == 0
+    assert total_foreign_structure == 0
+
+
+def test_white_black_blue_composite_owns_only_its_two_regions(known_results):
+    case = known_results["02_white_black_icons.png"]
+    blue = next(asset for asset in case["result"].assets if "region-4" in asset.region_ids)
+    assert set(blue.region_ids) == {"region-4", "region-5"}
 
 
 def test_multicolor_connected_icon_is_not_split(known_results):

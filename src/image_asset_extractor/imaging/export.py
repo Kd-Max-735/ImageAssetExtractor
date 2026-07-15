@@ -51,7 +51,7 @@ def _recover_flattened_effects(
     source_alpha_evidence = (source_alpha > 0) & (source_alpha < 255)
     outside = allowed & ~structure & ~source_alpha_evidence
     external = _edge_connected(~structure)
-    effect = external & (best_alpha >= 1.0 / 255.0) & (smoothed_alpha >= 0.012)
+    effect = allowed & external & (best_alpha >= 1.0 / 255.0) & (smoothed_alpha >= 0.012)
     effect_alpha = np.maximum(best_alpha, smoothed_alpha)
     recovered_rgb = np.clip(
         background + delta / np.maximum(effect_alpha[:, :, None], 1.0 / 255.0),
