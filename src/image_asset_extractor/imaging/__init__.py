@@ -1,0 +1,2 @@
+"""Traditional image-processing pipeline."""
+

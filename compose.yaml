@@ -1,0 +1,46 @@
+services:
+  rmbg:
+    profiles: ["containerized-rmbg"]
+    build:
+      context: .
+      dockerfile: docker/rmbg.Dockerfile
+    image: image-asset-extractor-rmbg:2.0
+    gpus: all
+    environment:
+      MODEL_PATH: /models/RMBG20
+    volumes:
+      - type: bind
+        source: ${RMBG_MODEL_PATH_HOST:-D:/RMBG/RMBG/RMBG20}
+        target: /models/RMBG20
+        read_only: true
+    ports:
+      - "${RMBG_PORT:-8001}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: image-asset-extractor:0.2.0
+    environment:
+      IMAGE_ASSET_OUTPUT_DIR: /app/output
+      EXTRACTION_MAX_WORKERS: "1"
+      ENABLE_RMBG: "true"
+      RMBG_SERVICE_URL: http://host.docker.internal:${RMBG_PORT:-8001}
+      RMBG_REMOVE_BG_PATH: /remove-bg
+      ENABLE_SAM31: "true"
+      SAM31_SERVICE_URL: http://host.docker.internal:${SAM31_PORT:-8002}
+      SAM31_SEGMENT_PATH: /segment
+    volumes:
+      - type: bind
+        source: ${OUTPUT_PATH_HOST:-./output}
+        target: /app/output
+    ports:
+      - "${API_PORT:-8000}:8000"
+    restart: unless-stopped

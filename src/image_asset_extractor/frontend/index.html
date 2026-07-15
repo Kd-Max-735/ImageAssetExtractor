@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>多素材 PNG 提取</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header><div><h1>多素材 PNG 提取</h1><p>上传、检测、纠错并导出透明素材</p></div><span id="health">API 检查中</span></header>
+  <main>
+    <section class="panel upload-panel">
+      <h2>1. 上传与参数</h2>
+      <form id="uploadForm">
+        <label class="drop"><input id="file" name="file" type="file" accept="image/png,image/jpeg,image/webp" required><span>选择 PNG / JPG / JPEG / WebP</span></label>
+        <div class="fields">
+          <label>背景<select name="backgroundType"><option value="auto">自动</option><option value="transparent">透明</option><option value="white">白底</option><option value="solid">纯色</option><option value="near-solid">近似纯色</option><option value="gradient">渐变</option><option value="complex">复杂</option></select></label>
+          <label>素材模式<select name="assetMode"><option value="icon">图标</option><option value="auto">自动</option><option value="person">人物</option><option value="product">商品</option><option value="decoration">装饰</option><option value="general">通用</option></select></label>
+          <label>文字<select name="textMode"><option value="auto">自动</option><option value="preserve">保留</option><option value="remove">移除</option></select></label>
+          <label>最小面积比<input name="minAreaRatio" type="number" min="0" max="0.99" step="0.0001" value="0.0001"></label>
+          <label>聚类距离比<input name="mergeDistanceRatio" type="number" min="0" max="0.25" step="0.005" value="0.01"></label>
+          <label>留白比<input name="paddingRatio" type="number" min="0" max="1" step="0.01" value="0.05"></label>
+          <label>背景容差<input name="backgroundTolerance" type="number" min="0" max="255" value="15"></label>
+          <label>文件前缀<input name="outputPrefix" value="icon" maxlength="64"></label>
+          <label>编号位数<input name="numberDigits" type="number" min="1" max="9" value="3"></label>
+          <label>画布<select name="outputCanvas"><option value="tight">紧凑</option><option value="square">方形</option></select></label>
+          <label>导出格式<select name="outputFormat"><option value="png">PNG（透明）</option></select></label>
+          <label>方形边长<input name="canvasSize" type="number" min="16" max="10000" placeholder="自动"></label>
+          <label>羽化<input name="edgeFeather" type="number" min="0" max="20" step="0.5" value="0"></label>
+          <label>粘连拆分强度<input name="splitStrength" type="number" min="0" max="1" step="0.1" value="0.5"></label>
+        </div>
+        <div class="checks"><label><input name="includeZip" type="checkbox" checked> 初次生成 ZIP</label><label><input name="useRmbg" type="checkbox"> RMBG</label><label><input name="useSam31" type="checkbox"> SAM 3.1</label></div>
+        <button class="primary" type="submit">开始提取</button>
+      </form>
+      <div id="progressBox" hidden><progress id="progress" max="100"></progress><span id="progressText"></span></div>
+      <div id="message" role="alert"></div>
+    </section>
+
+    <section class="panel workspace" id="workspace" hidden>
+      <div class="workspace-head"><div><h2>2. 检测与纠错</h2><p id="backgroundInfo"></p></div><div class="toolbar"><button id="undo">撤销</button><button id="redo">重做</button><button id="zoomOut">−</button><button id="zoomIn">＋</button><button id="fit">适配</button></div></div>
+      <div class="work-grid">
+        <div class="stage-wrap"><canvas id="stage"></canvas><div class="hint">单击选中；分割线/画笔模式下拖动；滚轮缩放，右键拖动平移。</div></div>
+        <aside>
+          <div class="tabs"><button data-tool="select" class="active">选择</button><button data-tool="split">分割线</button><button data-tool="add">增加蒙版</button><button data-tool="erase">擦除蒙版</button></div>
+          <div class="brush"><label>画笔 <input id="brushSize" type="range" min="2" max="200" value="30"><output id="brushSizeOut">30</output></label><label>硬度 <input id="hardness" type="range" min="0" max="1" step="0.05" value="0.8"></label><label>羽化 <input id="feather" type="range" min="0" max="30" value="2"></label><button id="applyStroke">应用蒙版</button></div>
+          <div class="bbox"><h3>候选框</h3><div class="quad"><label class="coord-field"><span>X（左上角横坐标，px）</span><input id="bx" type="number"></label><label class="coord-field"><span>Y（左上角纵坐标，px）</span><input id="by" type="number"></label><label class="coord-field"><span>宽度（px）</span><input id="bw" type="number"></label><label class="coord-field"><span>高度（px）</span><input id="bh" type="number"></label></div><p class="coord-help">坐标以原图左上角为 (0, 0)，单位为像素。</p><button id="saveBbox">保存候选框</button></div>
+          <div class="preview"><h3>单素材预览</h3><div class="preview-bg"><button data-bg="checker" class="active">棋盘</button><button data-bg="white">白底</button><button data-bg="black">黑底</button><button data-bg="transparent">透明</button></div><img id="assetPreview" alt="素材预览"><a id="downloadAsset" class="button" href="#">下载当前 PNG</a></div>
+        </aside>
+      </div>
+      <div class="asset-actions"><button id="merge">合并勾选</button><button id="delete">删除当前</button><button id="moveUp">上移</button><button id="moveDown">下移</button><input id="renameInput" placeholder="new-name.png"><button id="rename">重命名</button></div>
+      <div id="assetList" class="asset-list"></div>
+    </section>
+
+    <section class="panel export" id="exportPanel" hidden>
+      <h2>3. 导出</h2>
+      <label><input id="exportZip" type="checkbox" checked> 生成 ZIP</label>
+      <button id="export" class="primary">重新生成导出</button>
+      <div id="downloads"></div>
+    </section>
+  </main>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

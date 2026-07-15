@@ -1,0 +1,9 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+output
+tests
+D:\RMBG
+D:\sam3.1
