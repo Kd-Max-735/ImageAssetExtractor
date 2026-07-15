@@ -115,6 +115,15 @@ def test_white_black_blue_composite_owns_only_its_two_regions(known_results):
     assert set(blue.region_ids) == {"region-4", "region-5"}
 
 
+def test_solid_background_triangle_prefers_touching_arrow(known_results):
+    assets = known_results["05_solid_color_background.webp"]["result"].assets
+    red_rectangle = next(asset for asset in assets if "region-6" in asset.region_ids)
+    blue_arrow = next(asset for asset in assets if "region-7" in asset.region_ids)
+    assert set(red_rectangle.region_ids) == {"region-6"}
+    assert "region-12" in blue_arrow.region_ids
+    assert red_rectangle.bbox.x2 < blue_arrow.bbox.x
+
+
 def test_multicolor_connected_icon_is_not_split(known_results):
     case = known_results["01_transparent_icons.png"]
     source = case["checked"].rgba[:, :, :3]

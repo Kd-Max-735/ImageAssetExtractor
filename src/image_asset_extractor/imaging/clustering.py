@@ -166,19 +166,36 @@ def cluster_regions(
             scale = max(1.0, large.bbox.width, large.bbox.height)
             gap = _bbox_gap(small.bbox, large.bbox)
             center_distance = float(np.linalg.norm(np.asarray(small.centroid) - np.asarray(large.centroid)))
-            same_cell = _cell_index(small, grid_cells) == _cell_index(large, grid_cells)
+            small_cell = _cell_index(small, grid_cells)
+            large_cell = _cell_index(large, grid_cells)
+            same_cell = small_cell == large_cell
+            same_projection_cell = small_cell is not None and same_cell
             allowance = 1.15 if same_cell else 1.0
+            color_distance = _color_distance(small, large)
+            # Cross-color ownership is local-only: a clearly smaller satellite
+            # must share a projection cell and touch or nearly touch its body.
+            local_cross_color = (
+                ratio <= 0.20
+                and same_projection_cell
+                and gap <= max(global_distance, scale * THRESHOLDS.cross_cell_gap_scale)
+            )
             if (
                 gap <= max(global_distance, scale * THRESHOLDS.satellite_gap_scale * allowance)
                 and center_distance <= scale * THRESHOLDS.satellite_center_scale * allowance
-                and _color_distance(small, large) <= THRESHOLDS.satellite_color_distance
+                and (color_distance <= THRESHOLDS.satellite_color_distance or local_cross_color)
                 and _cross_cell_gap_allowed(
                     small, large, grid_cells, global_distance, scale, enforce_cross_cell_guard,
                 )
             ):
                 existing_satellites = len(clusters[cluster_of(large_index)]) - 1
                 structure_bonus = min(0.24, existing_satellites * 0.08)
-                compatible.append((gap / scale + center_distance / scale * 0.2 - structure_bonus, large_index))
+                color_penalty = min(0.30, color_distance / THRESHOLDS.satellite_color_distance * 0.08)
+                cell_bonus = 0.08 if same_projection_cell else 0.0
+                compatible.append((
+                    gap / scale + center_distance / scale * 0.2
+                    + color_penalty - structure_bonus - cell_bonus,
+                    large_index,
+                ))
         compatible.sort()
         if compatible and (len(compatible) == 1 or compatible[1][0] > compatible[0][0] * 1.25 + 0.12):
             merge({small_index, compatible[0][1]})
